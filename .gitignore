@@ -2,3 +2,4 @@ sec
 *.ipynb
 *.conf
 *.log
+__pycache*
