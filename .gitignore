@@ -3,3 +3,4 @@ sec
 *.conf
 *.log
 __pycache*
+*/__pycache*
