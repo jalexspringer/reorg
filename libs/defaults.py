@@ -11,4 +11,4 @@ DEFAULT_WORKFLOW = ['Open', 'In-Progress', 'Blocked', '|', 'Completed', 'Cancell
 DEFAULT_PRIORITIES= {'0': 'Urgent', '1': 'High', '2': 'Medium', '3': 'Low'}
 
 # Messaging
-NON_ADMIN_MESSAGE = "This action requires admin priveleges. Please contact your team admin."
+NON_ADMIN_MESSAGE = "This action requires admin privileges. Please contact your team admin."

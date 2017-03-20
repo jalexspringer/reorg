@@ -62,15 +62,6 @@ class RtmBot(object):
         self.bot_plugins = []
         self.slack_client = SlackClient(self.token)
 
-        # find bot id
-        api_call = self.slack_client.api_call("users.list")
-        if api_call.get('ok'):
-            # retrieve all users so we can find our bot
-            users = api_call.get('members')
-            for user in users:
-                if 'name' in user and user.get('name') == 'reorg':
-                    self.bot_id = user.get('id')
-
     def _dbg(self, debug_string):
         if self.debug:
             logging.debug(debug_string)
