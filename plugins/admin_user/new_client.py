@@ -2,17 +2,17 @@ import random
 import string
 
 import rethinkdb as r
+from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
 
+from rtmbot.core import Plugin
 from libs.admin import Admin_Updates
 from sec.sec import *
-from rtmbot.core import Plugin
-
-AT_BOT = "<@" + BOT_ID + ">"
+from libs.defaults import *
 
 class NewClientPlugin(Plugin):
     def process_message(self, data):
-        if 'init new org' in data['text'] and AT_BOT in data['text']:
-            print('I here ya!')
+        if data['text'].startswith('init new org'):
+            self.outputs.append([data['channel'], "Welcome to ReOrg! Initializing your team's database. This may take a minute if your team has a large number of members."])
             users = self.slack_client.api_call("users.list")
             team = self.slack_client.api_call("team.info")
             if team['ok']:
@@ -22,11 +22,13 @@ class NewClientPlugin(Plugin):
                 if users['ok']:
                     user_list = []
                     for u in users['members']:
-                        if u['is_bot'] or u['deleted'] or u['is_restricted'] or u['is_ultra_restricted'] or u['name'] == 'slackbot':
+                        if u['name'] == BOT_NAME:
+                            reorg_bot_id = u['id']
+                        elif u['is_bot'] or u['deleted'] or u['is_restricted'] or u['is_ultra_restricted'] or u['name'] == 'slackbot':
                             print(u['id'], "Skipped")
                         else:
                             user_list.append(u['id'])
-                    self.account_registered(team_name, data['user'], team_id, team_domain, user_list)
+                    self.account_registered(team_name, data['user'], team_id, team_domain, user_list, reorg_bot_id)
                 else:
                     self.outputs.append([data['channel'], "Failed to add users. Response not OK"])
             else:
@@ -56,7 +58,7 @@ class NewClientPlugin(Plugin):
         return orgID
 
 
-    def account_registered(self, client, admin_user, team_id, team_domain, user_list):
+    def account_registered(self, client, admin_user, team_id, team_domain, user_list, reorg_bot_id):
         # Adds new client admin details to Clients DB
         # TODO Create the slack_client object to get user info.
         # TODO Keep this sucker open - allow for easy API use outside of slack as well.
@@ -77,6 +79,7 @@ class NewClientPlugin(Plugin):
             'defaultTeams': 'all',
             'userGroups': {'GTM': 'General Team Member'},
             'defaultUserGroups': 'all',
+            'reorgBotID': reorg_bot_id,
             'billing': {}
         }
         c_table.insert(new_record).run(c)
@@ -88,5 +91,3 @@ class NewClientPlugin(Plugin):
             a.create_user_group(k, v, admin_user)
         a.add_all_users(user_list)
         return orgID
-
-

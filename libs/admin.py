@@ -1,6 +1,5 @@
 '''
-Generate a new DB for a new organization, add that org to the Clients DB and starts the new admin tutorial.
-Fills in defaults as needed for first team and task types.
+
 '''
 import rethinkdb as r
 from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
@@ -8,7 +7,7 @@ from datetime import datetime
 
 from rtmbot.core import Plugin
 from sec.sec import *
-
+from libs.defaults import *
 
 class Admin_Updates():
     def __init__(self, org, admin_user, slack_client):
