@@ -21,6 +21,18 @@ class ReOrgUser:
         self.org = org
         self.user = user
         self.admin = False
+        c = r.connect(DB_HOST, PORT)
+        res = r.db('Clients').table('clients').get(org).run(c)
+        c.close()
+        self.platform = res['platform']['name']
+        if res['defaultTeams'] == 'all':
+            self.default_teams = res['teams']
+        else:
+            self.default_teams = res['defaultTeams']
+        if res['defaultUserGroups'] == 'all':
+            self.default_user_group = res['userGroups']
+        else:
+            self.default_user_group = res['defaultUserGroups']
 
     def non_admin_response(self, command):
         return NON_ADMIN_MESSAGE.format(command)
@@ -30,17 +42,6 @@ class AdminUser(ReOrgUser):
     def __init__(self, org, user):
         ReOrgUser.__init__(self, org, user)
         self.admin = True
-        c = r.connect(DB_HOST, PORT)
-        res = r.db('Clients').table('clients').get(org).run(c)
-        if res['defaultTeams'] == 'all':
-            self.default_teams = res['teams']
-        else:
-            self.default_teams = res['defaultTeams']
-        if res['defaultUserGroups'] == 'all':
-            self.default_user_group = res['userGroups']
-        else:
-            self.default_user_group = res['defaultUserGroups']
-        c.close()
 
     # Functions to create or modify
     def create_user(self, user_info, admin=False, slack=False):

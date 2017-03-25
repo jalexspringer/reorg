@@ -70,9 +70,13 @@ class NewClientPlugin(Plugin):
             'id': orgID,
             'name': client,
             'adminUser': admin_user,
-            'slackTeamID': team_id,
-            'slackTeamName': client,
-            'slackTeamDomain': team_domain,
+            'platform' : {
+                'name' : 'slack',
+                'slackTeamID': team_id,
+                'slackTeamName': client,
+                'slackTeamDomain': team_domain,
+                'reorgBotID': reorg_bot_id
+                },
             'dbSize': '',
             'queriesPerMonth': '',
             'plan': 1,
@@ -80,7 +84,6 @@ class NewClientPlugin(Plugin):
             'defaultTeams': 'all',
             'userGroups': {'GTM': 'General Team Member'},
             'defaultUserGroups': 'all',
-            'reorgBotID': reorg_bot_id,
             'billing': {}
         }
         c_table.insert(new_record).run(c)

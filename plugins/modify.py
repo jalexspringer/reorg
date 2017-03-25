@@ -13,8 +13,8 @@ class AdminUserPlugin(Plugin):
 
     def process_message(self, data):
             self.c = r.connect(DB_HOST, PORT)
-            self.org = r.db(CLIENT_DB).table(CLIENT_TABLE).filter({'slackTeamID': data['source_team']}).pluck('id').max().run(self.c)['id']
-            self.bot_id = r.db(CLIENT_DB).table(CLIENT_TABLE).get(self.org).run(self.c)['reorgBotID']
+            self.org = r.db(CLIENT_DB).table(CLIENT_TABLE).filter({'platform':{'slackTeamID': data['source_team']}}).pluck('id').max().run(self.c)['id']
+            self.bot_id = r.db(CLIENT_DB).table(CLIENT_TABLE).get(self.org).run(self.c)['platform']['reorgBotID']
 
             # General user command dict
             command_dict = {
