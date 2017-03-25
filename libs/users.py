@@ -127,7 +127,7 @@ class AdminUser(ReOrgUser):
             return f'Duplicate team: {team_id}. Use update function to make changes to an existing team, or try again with a unique team id.'
 
     def parse_team_creation(self, command):
-        workflow = self.create_workflow()
+        workflow = 'default'
         priorities = DEFAULT_PRIORITIES
         team_lead = self.user
         com_array = command.split(' ')
@@ -139,8 +139,7 @@ class AdminUser(ReOrgUser):
             elif com.startswith('manager='):
                 team_lead = com[10:-1]
             elif com.startswith('workflow='):
-                workflow = self.create_workflow(com[9:])
-                workflow.name = 'default'
+                workflow = com[9:]
             elif com.startswith('priorities='):
                 priorities = {}
                 priority_names = com[11:].strip('[]').split(',')
@@ -205,7 +204,7 @@ class AdminUser(ReOrgUser):
             r.db(self.org).table(GROUPS_TABLE).insert(new_group).run(c)
             return 'Group created'
 
-    def create_workflow(self, flowlist=None, name=None):
+    def create_workflow(self, flowlist=None, name='default'):
         # Flow list format: '[Open,Working,|,Closed,Cancelled]'
         # If no pipe is sent then the last stage is considered the only closed stage.
         c = r.connect(DB_HOST, PORT)

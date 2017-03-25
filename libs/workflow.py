@@ -1,6 +1,6 @@
 
 class Workflow:
-    def __init__(self, flowlist=None, name='reorgDefault'):
+    def __init__(self, flowlist=None, name='default'):
         if flowlist is None:
             flowlist = '[Open,In-Progress,Blocked,|,Completed,Cancelled,Non-Responsive]'
         else:
@@ -16,12 +16,8 @@ class Workflow:
                 self.open_stages = workflow[:-1]
                 self.closed_stages = workflow[-1:]
             except IndexError:
-                self.open_stages = None
-                self.closed_stages = None
-        if self.open_stages is None:
-            self.open_stages = ['Open', 'In-Progress', 'Blocked']
-        if self.closed_stages is None:
-            self.closed_stages = ['Completed', 'Cancelled' 'Non-Responsive']
+                self.open_stages = ['Open', 'In-Progress', 'Blocked']
+                self.closed_stages = ['Completed', 'Cancelled' 'Non-Responsive']
 
         self.name = name
         # self.open_count = len(open_stages)
