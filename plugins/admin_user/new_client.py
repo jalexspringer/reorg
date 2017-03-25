@@ -17,7 +17,7 @@ class NewClientPlugin(Plugin):
             team = self.slack_client.api_call("team.info")
             if team['ok']:
                 team_id = team['team']['id']
-                team_name = team['team']['name']
+                team_name = team['team']['name'].strip()
                 team_domain = team['team']['domain']
                 if users['ok']:
                     user_list = []
@@ -51,12 +51,12 @@ class NewClientPlugin(Plugin):
             r.db(orgID).table_create(USER_TABLE).run(c)
             r.db(orgID).table_create(TEAMS_TABLE).run(c)
             r.db(orgID).table_create(GROUPS_TABLE).run(c)
+            r.db(orgID).table_create(TASKS_TABLE).run(c)
             print(f'New Client DB Created: {orgID}')
         except RqlRuntimeError:
             print(f'Duplicate OrgID: {orgID}, finding a new one')
             return new_org(c)
         return orgID
-
 
     def account_registered(self, client, admin_user, team_id, team_domain, user_list, reorg_bot_id):
         # Adds new client admin details to Clients DB
@@ -75,7 +75,7 @@ class NewClientPlugin(Plugin):
             'dbSize': '',
             'queriesPerMonth': '',
             'plan': 1,
-            'teams': {client[:3].upper(): client},
+            'teams': [(client[:3].upper().strip(), client)],
             'defaultTeams': 'all',
             'userGroups': {'GTM': 'General Team Member'},
             'defaultUserGroups': 'all',
@@ -85,9 +85,9 @@ class NewClientPlugin(Plugin):
         c_table.insert(new_record).run(c)
         c.close()
         a = Admin_Updates(orgID, admin_user, self.slack_client)
-        for k,v in a.default_teams.items():
-            a.create_team(k, v, admin_user)
+        for t in a.default_teams:
+            a.create_team(t[0], t[1])
         for k,v in a.default_user_group.items():
-            a.create_user_group(k, v, admin_user)
+            a.create_group(k, v)
         a.add_all_users(user_list)
         return orgID

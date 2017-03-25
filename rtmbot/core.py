@@ -6,6 +6,8 @@ import os
 import time
 import logging
 
+from threading import Thread
+
 from slackclient import SlackClient
 
 from rtmbot.utils.module_loading import import_string
@@ -85,7 +87,8 @@ class RtmBot(object):
                 )
         while True:
             for reply in self.slack_client.rtm_read():
-                self.input(reply)
+                t = Thread(target=self.input, args=(reply,))
+                t.start()
             self.crons()
             self.output()
             self.autoping()
