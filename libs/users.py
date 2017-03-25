@@ -1,5 +1,6 @@
 '''
-Admin only tools to modify/add teams, users, and usergroups.
+Defines User class with basic task manipulation functions
+Admin user extends this and adds admin only functions to modify/add teams, users, and usergroups.
 Define team template tasks, workflows, and priorities
 bot_client currently calls the slack API
 '''
@@ -13,11 +14,22 @@ from sec.sec import *
 from libs.defaults import *
 from libs.workflow import Workflow
 
-class Admin_Updates():
-    def __init__(self, org, admin_user, bot_client):
+
+class ReOrgUser:
+    def __init__(self, org, user):
+        # TODO Add timezone options and modify lastModified in dictionaries.
         self.org = org
-        self.admin_user = admin_user
-        self.bot_client = bot_client
+        self.user = user
+        self.admin = False
+
+    def non_admin_response(self, command):
+        return NON_ADMIN_MESSAGE.format(command)
+
+
+class AdminUser(ReOrgUser):
+    def __init__(self, org, user):
+        ReOrgUser.__init__(self, org, user)
+        self.admin = True
         c = r.connect(DB_HOST, PORT)
         res = r.db('Clients').table('clients').get(org).run(c)
         if res['defaultTeams'] == 'all':
@@ -31,50 +43,71 @@ class Admin_Updates():
         c.close()
 
     # Functions to create or modify
-    def create_slack_user(self, user, admin=False):
-        # Slack info check
-        user_info = self.bot_client.api_call("users.info", user=user)
-        if user_info['ok']:
-
-            # Omit deleted and bot users.
-            if user_info['user']['deleted'] or user_info['user']['is_bot'] or user_info['user']['is_restricted']:
-                return None
-
-            if user_info['user']['is_admin'] or self.admin_user == user:
-                admin = True
-
-            try:
-                firstName = user_info['user']['profile']['first_name'],
-                lastName = user_info['user']['profile']['last_name'],
-            except KeyError:
-                firstName = ''
-                lastName = ''
-
-            new_user = {
-                'id': user,
-                'firstName': firstName,
-                'lastName': lastName,
-                'name': user_info['user']['profile']['real_name'],
-                'email': user_info['user']['profile']['email'],
-                'pass': '',
-                'admin': admin,
-                'notification': 1,
-                'teams': self.default_teams,
-                'dmChannel': '',
-                'userGroup': self.default_user_group,
-                'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
-                'modifiedBy': self.admin_user,
-                'activityLogs': []
+    def create_user(self, user_info, admin=False, slack=False):
+        '''
+        Creates new user dictionaries based on the user_info dictionary.
+        Required user_info fields:
+        {
+        'id': unique user id,
+        'profile': {
+            'real_name': user name,
+            'email': email,
             }
-            return new_user
-        else:
-            print(f"Slack error - check user details for user {user}")
-            return None
+        }
 
-    def add_all_users(self, user_array, admin=False):
+        profile can also include first and last name
+        '''
+        # Omit deleted and bot users.
+        try:
+            if user_info['deleted'] or user_info['user']['is_bot'] or user_info['user']['is_restricted']:
+                return None
+        except:
+            pass
+
+        try:
+            if user_info['is_admin'] or self.user == user:
+                admin = True
+        except:
+            admin = False
+
+        try:
+            firstName = user_info['profile']['first_name'],
+            lastName = user_info['profile']['last_name'],
+        except KeyError:
+            firstName = ''
+            lastName = ''
+
+        if slack:
+            password = 'slackLogin'
+        else:
+            # TODO Send welcome emails and require password on first login.
+            password = ''
+
+        new_user = {
+            'firstName': firstName,
+            'lastName': lastName,
+            'name': user_info['profile']['real_name'],
+            'email': user_info['profile']['email'],
+            'pass': password,
+            'admin': admin,
+            'notification': 1,
+            'teams': self.default_teams,
+            'dmChannel': '',
+            'userGroup': self.default_user_group,
+            'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
+            'modifiedBy': self.user,
+            'activityLogs': []
+        }
+
+        if slack:
+            new_user.update({'id': user_info['id']})
+
+        return new_user
+
+    def add_all_users(self, user_array, admin=False, slack=False):
         to_insert = []
         for user in user_array:
-            to_insert.append(self.create_slack_user(user, admin=admin))
+            to_insert.append(self.create_user(user, admin=admin, slack=slack))
         try:
             c = r.connect(DB_HOST, PORT)
             r.db(self.org).table(USER_TABLE).insert(to_insert).run(c)
@@ -94,9 +127,9 @@ class Admin_Updates():
             return f'Duplicate team: {team_id}. Use update function to make changes to an existing team, or try again with a unique team id.'
 
     def parse_team_creation(self, command):
-        workflow = self.create_workflow(name='default')
+        workflow = self.create_workflow()
         priorities = DEFAULT_PRIORITIES
-        team_lead = self.admin_user
+        team_lead = self.user
         com_array = command.split(' ')
         for com in com_array:
             if com.startswith('id='):
@@ -126,7 +159,7 @@ class Admin_Updates():
                 'defaultWorkflow' : workflow,
                 'customFields': [],
                 'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
-                'modifiedBy': self.admin_user,
+                'modifiedBy': self.user,
                 'priorities': priorities
             }
             return new_team
@@ -166,35 +199,33 @@ class Admin_Updates():
                 'groupLongName': group_long,
                 'groupLead' : group_lead,
                 'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
-                'modifiedBy': self.admin_user,
+                'modifiedBy': self.user,
                 'defaultPermissions' : permissions
             }
             r.db(self.org).table(GROUPS_TABLE).insert(new_group).run(c)
             return 'Group created'
 
-    def create_workflow(self, flow_list):
+    def create_workflow(self, flowlist=None, name=None):
         # Flow list format: '[Open,Working,|,Closed,Cancelled]'
         # If no pipe is sent then the last stage is considered the only closed stage.
-        try:
-            workflow = flow_list.strip('[]').split(' | ')
-            open_stages = workflow[0].split(',')
-            closed_stages = workflow[1].split(',')
-        except IndexError:
-            try:
-                workflow = flow_list.strip('[]').split(',')
-                open_stages = workflow[:-1]
-                closed_stages = workflow[-1:]
-            except IndexError:
-                c = r.connect(DB_HOST, PORT)
-                res = r.db(self.org).table('workflows').get(org).run(c)
-                worflow = flow_list
-        return Workflow(name='newWorkflow', flow_list)
+        c = r.connect(DB_HOST, PORT)
+        flow = Workflow(flowlist, name)
+        new_flow = {
+            'id': flow.name,
+            'flowlist': flow.flowlist,
+            'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
+            'modifiedBy': self.user,
+        }
+        res = r.db(self.org).table('workflows').insert(new_flow).run(c)
+        c.close()
+        return flow.name
 
     def create_priorities(self, command):
         ...
 
     # Modify existing objects,
     def modify_team(self, command):
+        return "You modify that team."
         ...
 
     def modify_group(self, command):
@@ -251,7 +282,7 @@ class Admin_Updates():
                 'dmChannel': '',
                 'userGroup': usergroups,
                 'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
-                'modifiedBy': self.admin_user,
+                'modifiedBy': self.user,
                 'activityLogs': []
             }
             return new_user

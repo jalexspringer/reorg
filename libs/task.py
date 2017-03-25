@@ -74,7 +74,7 @@ class Task:
             self.task_dictionary['team'] = user['teams'][0][0]
         team = r.db(self.org).table('teams').get(self.task_dictionary['team']).run(c)
         if self.task_dictionary['workflow'] is None:
-            self.task_dictionary['workflow'] = team['workflows']['default']
+            self.task_dictionary['workflow'] = team['defaultWorkflow']
         if self.task_dictionary['priorities'] is None:
             self.task_dictionary['priorities'] = team['priorities']
         if self.task_dictionary['channel'] is None:
