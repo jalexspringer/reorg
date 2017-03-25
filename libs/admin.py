@@ -11,6 +11,7 @@ from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceEr
 from rtmbot.core import Plugin
 from sec.sec import *
 from libs.defaults import *
+from libs.workflow import Workflow
 
 class Admin_Updates():
     def __init__(self, org, admin_user, bot_client):
@@ -93,7 +94,7 @@ class Admin_Updates():
             return f'Duplicate team: {team_id}. Use update function to make changes to an existing team, or try again with a unique team id.'
 
     def parse_team_creation(self, command):
-        workflow = DEFAULT_WORKFLOW
+        workflow = self.create_workflow(name='default')
         priorities = DEFAULT_PRIORITIES
         team_lead = self.admin_user
         com_array = command.split(' ')
@@ -105,7 +106,8 @@ class Admin_Updates():
             elif com.startswith('manager='):
                 team_lead = com[10:-1]
             elif com.startswith('workflow='):
-                workflow = com[9:].strip('[]').split(',')
+                workflow = self.create_workflow(com[9:])
+                workflow.name = 'default'
             elif com.startswith('priorities='):
                 priorities = {}
                 priority_names = com[11:].strip('[]').split(',')
@@ -121,7 +123,7 @@ class Admin_Updates():
                 'teamChannel': '',
                 'templateTask': [],
                 'taskCount': 0,
-                'workflows' : workflow,
+                'defaultWorkflow' : workflow,
                 'customFields': [],
                 'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
                 'modifiedBy': self.admin_user,
@@ -170,8 +172,23 @@ class Admin_Updates():
             r.db(self.org).table(GROUPS_TABLE).insert(new_group).run(c)
             return 'Group created'
 
-    def create_workflow(self, command):
-        ...
+    def create_workflow(self, flow_list):
+        # Flow list format: '[Open,Working,|,Closed,Cancelled]'
+        # If no pipe is sent then the last stage is considered the only closed stage.
+        try:
+            workflow = flow_list.strip('[]').split(' | ')
+            open_stages = workflow[0].split(',')
+            closed_stages = workflow[1].split(',')
+        except IndexError:
+            try:
+                workflow = flow_list.strip('[]').split(',')
+                open_stages = workflow[:-1]
+                closed_stages = workflow[-1:]
+            except IndexError:
+                c = r.connect(DB_HOST, PORT)
+                res = r.db(self.org).table('workflows').get(org).run(c)
+                worflow = flow_list
+        return Workflow(name='newWorkflow', flow_list)
 
     def create_priorities(self, command):
         ...
