@@ -5,7 +5,7 @@ import rethinkdb as r
 from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
 
 from rtmbot.core import Plugin
-from libs.admin import Admin_Updates
+from libs.users import AdminUser
 from sec.sec import *
 from libs.defaults import *
 
@@ -27,7 +27,7 @@ class NewClientPlugin(Plugin):
                         elif u['is_bot'] or u['deleted'] or u['is_restricted'] or u['is_ultra_restricted'] or u['name'] == 'slackbot':
                             print(u['id'], "Skipped")
                         else:
-                            user_list.append(u['id'])
+                            user_list.append(u)
                     self.account_registered(team_name, data['user'], team_id, team_domain, user_list, reorg_bot_id)
                 else:
                     self.outputs.append([data['channel'], "Failed to add users. Response not OK"])
@@ -52,6 +52,8 @@ class NewClientPlugin(Plugin):
             r.db(orgID).table_create(TEAMS_TABLE).run(c)
             r.db(orgID).table_create(GROUPS_TABLE).run(c)
             r.db(orgID).table_create(TASKS_TABLE).run(c)
+            r.db(orgID).table_create(WORKFLOWS_TABLE).run(c)
+
             print(f'New Client DB Created: {orgID}')
         except RqlRuntimeError:
             print(f'Duplicate OrgID: {orgID}, finding a new one')
@@ -60,7 +62,6 @@ class NewClientPlugin(Plugin):
 
     def account_registered(self, client, admin_user, team_id, team_domain, user_list, reorg_bot_id):
         # Adds new client admin details to Clients DB
-        # TODO Create the slack_client object to get user info.
         # TODO Keep this sucker open - allow for easy API use outside of slack as well.
         c = r.connect(DB_HOST, PORT)
         orgID = self.new_org(c)
@@ -84,10 +85,10 @@ class NewClientPlugin(Plugin):
         }
         c_table.insert(new_record).run(c)
         c.close()
-        a = Admin_Updates(orgID, admin_user, self.slack_client)
-        for t in a.default_teams:
-            a.create_team(t[0], t[1])
-        for k,v in a.default_user_group.items():
-            a.create_group(k, v)
-        a.add_all_users(user_list)
+        u = AdminUser(orgID, admin_user)
+        for t in u.default_teams:
+            u.create_team(t[0], t[1])
+        for k,v in u.default_user_group.items():
+            u.create_group(k, v)
+        u.add_all_users(user_list, slack=True)
         return orgID
