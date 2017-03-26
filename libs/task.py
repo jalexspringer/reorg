@@ -6,8 +6,70 @@ from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceEr
 from sec.sec import *
 from libs.defaults import *
 
-
 class Task:
+    def __init__(self, org, task_id):
+        self.task_id = task_id
+        self.c = r.connect(DB_HOST, PORT)
+        self.task = r.db(org).table(TASKS_TABLE).get(task_id)
+        self.task_record = task.run(self.c)
+        self.update_dictionary = {}
+
+
+    def commit(self):
+        ...
+        self.c.close()
+        response = self.task_dictionary['id'], 'Committed.'
+        return response
+
+
+    def resolve(self, stage):
+        self.task_dictionary['time']['resolved'] = (self.user, datetime.now())
+        self.task_dictionary['stage'] = stage
+        # TODO Workflow state change
+
+    def assign(self, ):
+        ...
+
+    def next_stage(self, ):
+        ...
+
+    def change_priority(self, ):
+        ...
+
+    def add_subtask(self, ):
+        ...
+
+    def add_contributor(self, ):
+        ...
+
+    def log_time(self, ):
+        ...
+
+    def start_clock(self, ):
+        ...
+
+    def stop_clock(self, ):
+        ...
+
+    def create_channel(self, ):
+        ...
+
+    def archive_channel(self, ):
+        ...
+
+    def comment(self, ):
+        ...
+
+    def attach_file(self, ):
+        ...
+
+    def add_tag(self, ):
+        ...
+
+    def link_tasks(self, ):
+        ...
+
+class NewTask(Task):
     def __init__(self,
                  org,
                  title,
@@ -101,51 +163,3 @@ class Task:
         table.insert(self.task_dictionary).run(c)
         print(self.task_dictionary['id'], 'Committed.')
 
-'''
-def resolve(self, stage):
-    self.task_dictionary['time']['resolved'] = (self.user, datetime.now())
-    self.task_dictionary['stage'] = stage
-    # TODO Workflow state change
-
-def assign(self, ):
-    ...
-
-def next_stage(self, ):
-    ...
-
-def change_priority(self, ):
-    ...
-
-def add_subtask(self, ):
-    ...
-
-def add_contributor(self, ):
-    ...
-
-def log_time(self, ):
-    ...
-
-def start_clock(self, ):
-    ...
-
-def stop_clock(self, ):
-    ...
-
-def create_channel(self, ):
-    ...
-
-def archive_channel(self, ):
-    ...
-
-def comment(self, ):
-    ...
-
-def attach_file(self, ):
-    ...
-
-def add_tag(self, ):
-    ...
-
-def link_tasks(self, ):
-    ...
-'''
