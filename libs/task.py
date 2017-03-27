@@ -5,69 +5,284 @@ from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceEr
 
 from sec.sec import *
 from libs.defaults import *
+from libs.workflow import Workflow
 
 class Task:
-    def __init__(self, org, task_id):
+    def __init__(self, org, task_id, user):
+        self.org = org
         self.task_id = task_id
+        self.user = user
         self.c = r.connect(DB_HOST, PORT)
         self.task = r.db(org).table(TASKS_TABLE).get(task_id)
-        self.task_record = task.run(self.c)
+        self.task_record = self.task.run(self.c)
         self.update_dictionary = {}
+        self.stage = self.task_record['stage']
+        flowlist = r.db(self.org).table('workflows').get(self.task_record['workflow']).run(self.c)
+        self.flow = Workflow(flowlist['flowlist'], flowlist['id'])
 
+    def modified_date_time(self):
+        return {'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
+        'modifiedBy': self.user}
 
-    def commit(self):
-        ...
-        self.c.close()
-        response = self.task_dictionary['id'], 'Committed.'
+    def backup(self):
+        try:
+            current_history = self.task_record['history']
+        except KeyError:
+            current_history = []
+        to_archive = {i:self.task_record[i] for i in self.task_record if i!='history'}
+        print(to_archive)
+        current_history.insert(0, to_archive)
+        print(current_history)
+        if len(current_history) >= 10:
+            current_history.pop()
+        self.task.update({'history': current_history}).run(self.c)
+
+    def commit(self, to_backup=False):
+        try:
+            if not self.update_dictionary['open']:
+                self.update_dictionary.update({'time':
+                                               {'resolved': [r.expr(datetime.now(r.make_timezone('-05:00'))),
+                                                             self.user]
+                                               }})
+        except KeyError:
+            pass
+        if ['stage'] in self.update_dictionary:
+            self.flow.do(self.stage, self.task_id)
+            to_backup = True
+        if to_backup:
+            self.backup()
+        self.update_dictionary.update(self.modified_date_time())
+        self.task.update(self.update_dictionary).run(self.c)
+        self.task_record = self.task.run(self.c)
+        self.update_dictionary = {}
+        print('Updated record:\n', self.task_record)
+        response = self.task_id, 'Committed.'
         return response
 
+    def pending_changes(self):
+        response = self.update_dictionary
+        print(response)
+        return response
 
     def resolve(self, stage):
-        self.task_dictionary['time']['resolved'] = (self.user, datetime.now())
-        self.task_dictionary['stage'] = stage
+        self.update_dictionary['time']['resolved'] = (self.user, datetime.now())
+        self.update_dictionary['stage'] = stage
         # TODO Workflow state change
 
-    def assign(self, ):
-        ...
+    def assign(self, assignee):
+        try:
+            current = self.update_dictionary['contributors']
+            current['assignee'] = assignee
+        except KeyError:
+            current = {'assignee': assignee}
+        self.update_dictionary.update({'contributors': current})
+        response = 'New assignee added to update queue.'
+        return response
 
-    def next_stage(self, ):
-        ...
+    def add_contributor(self, *args):
+        contribs = self.task_record['contributors']['additional']
+        if contribs is None:
+            contribs = []
+        for a in args:
+            if a not in contribs:
+                contribs.append(a)
+        try:
+            pending = self.update_dictionary['contributors']
+            pending['additional'] = contribs
+        except KeyError:
+            pending = {'additional': contribs}
+        self.update_dictionary.update({'contributors': pending})
+        response = 'New contributors added to update queue.'
+        return response
+
+    def del_contributor(self, *args):
+        contribs = self.task_record['contributors']['additional']
+        if contribs is None:
+            return 'No contributors to delete!'
+        else:
+            for a in args:
+                if a in contribs:
+                    contribs.remove(a)
+        try:
+            pending = self.update_dictionary['contributors']
+            pending['additional'] = contribs
+        except KeyError:
+            pending = {'additional': contribs}
+        self.update_dictionary.update({'contributors': pending})
+        response = 'Modified contributor list added to update queue.'
+        return response
+
+    def change_stage(self, step=1, target=None):
+        if self.task_record['open'] and target is None:
+            self.stage += step
+            try:
+                new_stage = self.flow.open_stages[self.stage]
+            except KeyError:
+                new_stage = self.flow.closed_stages[100]
+                self.stage = 100
+                self.update_dictionary.update({'open': False})
+        elif self.task_record['open']:
+            self.stage = target
+            try:
+                new_stage = self.flow.open_stages[target]
+            except KeyError:
+                try:
+                    new_stage = self.flow.closed_stages[target]
+                    self.update_dictionary.update({'open': False})
+                except KeyError:
+                    print(f'{target} is not a valid workflow step')
+                    return f'{target} is not a valid workflow step'
+        else:
+            self.stage -= step
+            try:
+                new_stage = self.flow.closed_stages[self.stage]
+            except KeyError:
+                return f'This task is closed. Please specify what stage in the workflow you would like to return to.'
+        self.update_dictionary.update({'stage': self.stage})
+        response = "Stage change added to the update queue."
+        return response
 
     def change_priority(self, ):
         ...
 
-    def add_subtask(self, ):
-        ...
+    def add_todo(self, *args):
+        todo_dict = {}
+        try:
+            todo_id = len(self.task_record['todos']) + 1
+        except TypeError:
+            todo_id = 1
+        for a in args:
+            todo_dict[todo_id] = {
+                                'todo': a,
+                                'assignee': self.task_record['assignee'],
+                                'done': False,
+                                'due': None}
+            todo_id += 1
+        self.update_dictionary.update({'todos': todo_dict})
+        response = ''
+        return response
 
-    def add_contributor(self, ):
-        ...
+    def resolve_todo(self, todo):
+        self.update_dictionary.update({'todos': {todo: {'done': True}}})
+        response = ''
+        return response
 
     def log_time(self, ):
         ...
+        response = ''
+        return response
 
     def start_clock(self, ):
         ...
+        response = ''
+        return response
 
     def stop_clock(self, ):
+        response = ''
+        return response
         ...
 
     def create_channel(self, ):
-        ...
+        client = r.db('Clients').table('clients').get(self.org).run(self.c)
+        if client['platform'] == 'slack':
+            # TODO Create a slack channel!
+            response = 'Generating channel now!'
+            channel = 'Generate slack channel'
+            self.update_dictionary.update({'channel': channel})
+            return response
+        else:
+            return "Sorry, it looks like you are not connected to the slack platform."
 
     def archive_channel(self, ):
+        response = ''
+        return response
         ...
 
-    def comment(self, ):
-        ...
+    def add_comment(self, *args):
+        comments = self.task_record['comments']
+        comment_id_num = len(comments)
+        for a in args:
+            comment_id_num += 1
+            new_comment = {comment_id_num:
+                             {'user': self.user,
+                              'comment': a,
+                              'datetime': r.expr(datetime.now(r.make_timezone('-05:00')))
+                             }
+            }
+            comments.append(new_comment)
+        self.update_dictionary.update({'comments' : comments})
+        response = 'Comment added to update queue.'
+        return response
+
+    def del_comment(self, *args):
+        comments = self.task_record['comments']
+        if comments == []:
+            return 'No comments to delete!'
+        else:
+            for a in args:
+                if a in comments:
+                    del comments[a]
+        self.update_dictionary.update({'comments': comments})
+        response = 'Modified comments list added to update queue.'
+        return response
 
     def attach_file(self, ):
+        response = ''
+        return response
         ...
 
-    def add_tag(self, ):
-        ...
+    def add_tag(self, *args):
+        tags = self.task_record['tags']
+        if tags == []:
+            tags = []
+        for a in args:
+            if a not in tags:
+                tags.append(a)
+        self.update_dictionary.update({'tags': tags})
+        response = 'New tags added to update queue.'
+        return response
 
-    def link_tasks(self, ):
-        ...
+    def del_tag(self, *args):
+        tags = self.task_record['tags']
+        if tags is None:
+            return 'No tags to delete!'
+        else:
+            for a in args:
+                if a in tags:
+                    tags.remove(a)
+        self.update_dictionary.update({'tags': tags})
+        response = 'Modified link tag added to update queue.'
+        return response
+
+    def add_link(self, *args):
+        # First get full task list
+        all_tasks = []
+        new_links = self.task_record['links']
+        if new_links is None:
+            new_links = []
+        bad_links = []
+        for row in r.db(self.org).table('tasks').pluck('id').run(self.c):
+            all_tasks.append(list(row.values())[0])
+        for a in args:
+            if a not in all_tasks and a != self.task_id:
+                bad_links.append(a)
+            elif a not in new_links:
+                new_links.append(a)
+        self.update_dictionary.update({'links': new_links})
+        response = f'New links {new_links} created. The following links were not created (task does not exist) {bad_links}'
+        return response
+
+    def del_link(self, *args):
+        links = self.task_record['links']
+        if links is None:
+            return 'No links to delete!'
+        else:
+            for a in args:
+                if a in links:
+                    links.remove(a)
+        self.update_dictionary.update({'links': links})
+        response = 'Modified link list added to update queue.'
+        return response
 
 class NewTask(Task):
     def __init__(self,
@@ -101,6 +316,7 @@ class NewTask(Task):
                 'isParent' : is_parent,
                 'workflow' : workflow,
                 'stage' : 0,
+                'open': True,
                 'priorities' : priorities,
                 'priority' : 0,
                 'team' : team,
@@ -112,8 +328,8 @@ class NewTask(Task):
                     },
                 'channel' : None,
                 'channelArchive': None,
-                'tags' : [None],
-                'subs' : None,
+                'tags' : [],
+                'todos' : None,
                 'parent' : None,
                 'time': {
                     'reported': r.expr(datetime.now(r.make_timezone('-05:00'))),
