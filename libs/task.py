@@ -87,7 +87,10 @@ class Task:
         return response
 
     def add_contributor(self, *args):
-        contribs = self.task_record['contributors']['additional']
+        if 'contributors 'in self.update_dictionary:
+            contribs = self.update_dictionary['contributors']
+        else:
+            contribs = self.task_record['contributors']['additional']
         if contribs is None:
             contribs = []
         for a in args:
@@ -137,6 +140,7 @@ class Task:
             self.stage = target
             try:
                 new_stage = self.flow.open_stages[target]
+                self.update_dictionary.update({'open': True})
             except KeyError:
                 try:
                     new_stage = self.flow.closed_stages[target]
@@ -160,16 +164,17 @@ class Task:
 
     def change_priority(self, new_priority):
         options = self.task_record['priorities']
-        if new_priority in options:
+        print(options)
+        if str(new_priority) in options:
             self.update_dictionary.update({'priority': new_priority})
         else:
             response = 'Not a valid priority option.'
             return response
-        response = f'Priority change added to update queue. New priority is {options["new_priority"]}'
+        response = f'Priority change added to update queue. New priority is {options[str(new_priority)]}'
         return response
 
     def add_todo(self, *args):
-        todo_dict = {}
+        todo_dict = self.task_record['todos']
         try:
             todo_id = len(self.task_record['todos']) + 1
         except TypeError:
@@ -186,7 +191,7 @@ class Task:
         return response
 
     def resolve_todo(self, todo):
-        self.update_dictionary.update({'todos': {todo: {'done': True}}})
+        self.update_dictionary.update({'todos': {str(todo): {'done': True}}})
         response = ''
         return response
 
@@ -237,14 +242,15 @@ class Task:
         response = 'Comment added to update queue.'
         return response
 
-    def del_comment(self, *args):
+    def del_comment(self, to_delete):
         comments = self.task_record['comments']
         if comments == []:
             return 'No comments to delete!'
         else:
-            for a in args:
-                if a in comments:
-                    del comments[a]
+            for a in to_delete:
+                for ix, c in enumerate(comments):
+                    if str(a) in c:
+                        comments.pop(ix)
         self.update_dictionary.update({'comments': comments})
         response = 'Modified comments list added to update queue.'
         return response
@@ -252,7 +258,6 @@ class Task:
     def attach_file(self, ):
         response = ''
         return response
-        ...
 
     def add_tag(self, *args):
         tags = self.task_record['tags']
@@ -352,7 +357,7 @@ class NewTask(Task):
                 'channel' : None,
                 'channelArchive': None,
                 'tags' : [],
-                'todos' : None,
+                'todos' : {},
                 'parent' : None,
                 'time': {
                     'reported': r.expr(datetime.now(r.make_timezone('-05:00'))),
@@ -368,6 +373,7 @@ class NewTask(Task):
             }
         else:
             self.task_dictionary = template
+        self.update_dictionary = {}
 
     def replace_nones(self, c):
         user = r.db(self.org).table('users').get(self.task_dictionary['contributors']['reporter']).run(c)

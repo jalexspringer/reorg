@@ -13,6 +13,7 @@ from rtmbot.core import Plugin
 from sec.sec import *
 from libs.defaults import *
 from libs.workflow import Workflow
+from libs.task import Task, NewTask
 
 
 class ReOrgUser:
@@ -36,6 +37,14 @@ class ReOrgUser:
 
     def non_admin_response(self, command):
         return NON_ADMIN_MESSAGE.format(command)
+
+    def start_new_task(title, description, template=None):
+        t = NewTask(self.org, title, description, self.user, template=template)
+        return t
+
+    def open_task(task_id):
+        t = Task(self.org, task_id, self.user)
+        return t
 
 
 class AdminUser(ReOrgUser):

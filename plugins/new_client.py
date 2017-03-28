@@ -5,8 +5,8 @@ import rethinkdb as r
 from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
 
 from rtmbot.core import Plugin
-from libs.users import AdminUser
 from sec.sec import *
+from libs.users import AdminUser
 from libs.defaults import *
 
 class NewClientPlugin(Plugin):
@@ -94,4 +94,5 @@ class NewClientPlugin(Plugin):
         for k,v in u.default_user_group.items():
             u.create_group(k, v)
         u.add_all_users(user_list, slack=True)
+        u.create_workflow()
         return orgID
