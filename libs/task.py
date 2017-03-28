@@ -64,11 +64,6 @@ class Task:
         print(response)
         return response
 
-    def resolve(self, stage):
-        self.update_dictionary['time']['resolved'] = (self.user, datetime.now())
-        self.update_dictionary['stage'] = stage
-        # TODO Workflow state change
-
     def assign_task(self, assignee):
         try:
             current = self.update_dictionary['contributors']
@@ -76,6 +71,18 @@ class Task:
         except KeyError:
             current = {'assignee': assignee}
         self.update_dictionary.update({'contributors': current})
+        response = 'New assignee added to update queue.'
+        return response
+
+    def assign_todo(self, assignee, todo):
+        try:
+            current = self.task_record['todos'][str(todo)]
+        except KeyError:
+            response = 'No such todo!'
+            return response
+        self.update_dictionary.update({'todos': {str(todo): {'assignee': assignee}}})
+        if assignee != self.task_record['contributors']['assignee']:
+            self.add_contributor(assignee)
         response = 'New assignee added to update queue.'
         return response
 
@@ -147,8 +154,19 @@ class Task:
         response = "Stage change added to the update queue."
         return response
 
-    def change_priority(self, ):
-        ...
+    def resolve(self):
+        response = self.change_stage(target=100)
+        return response
+
+    def change_priority(self, new_priority):
+        options = self.task_record['priorities']
+        if new_priority in options:
+            self.update_dictionary.update({'priority': new_priority})
+        else:
+            response = 'Not a valid priority option.'
+            return response
+        response = f'Priority change added to update queue. New priority is {options["new_priority"]}'
+        return response
 
     def add_todo(self, *args):
         todo_dict = {}
