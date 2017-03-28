@@ -46,7 +46,7 @@ class Task:
                                                }})
         except KeyError:
             pass
-        if ['stage'] in self.update_dictionary:
+        if 'stage' in self.update_dictionary:
             self.flow.do(self.stage, self.task_id)
             to_backup = True
         if to_backup:
@@ -55,7 +55,7 @@ class Task:
         self.task.update(self.update_dictionary).run(self.c)
         self.task_record = self.task.run(self.c)
         self.update_dictionary = {}
-        print('Updated record:\n', self.task_record)
+        print('Updated record:\n', self.task_id)
         response = self.task_id, 'Committed.'
         return response
 
@@ -69,7 +69,7 @@ class Task:
         self.update_dictionary['stage'] = stage
         # TODO Workflow state change
 
-    def assign(self, assignee):
+    def assign_task(self, assignee):
         try:
             current = self.update_dictionary['contributors']
             current['assignee'] = assignee
@@ -113,6 +113,11 @@ class Task:
         return response
 
     def change_stage(self, step=1, target=None):
+        '''
+        Moves along the workflow stages.
+        Step defaults to 1 and moves to the next stage, target chooses a specific stage.
+        Open stages start at 0 and increase, closed stages start at 100 (successfully completed) and decrease
+        '''
         if self.task_record['open'] and target is None:
             self.stage += step
             try:
@@ -152,9 +157,9 @@ class Task:
         except TypeError:
             todo_id = 1
         for a in args:
-            todo_dict[todo_id] = {
+            todo_dict[str(todo_id)] = {
                                 'todo': a,
-                                'assignee': self.task_record['assignee'],
+                                'assignee': self.task_record['contributors']['assignee'],
                                 'done': False,
                                 'due': None}
             todo_id += 1
@@ -203,7 +208,7 @@ class Task:
         comment_id_num = len(comments)
         for a in args:
             comment_id_num += 1
-            new_comment = {comment_id_num:
+            new_comment = {str(comment_id_num):
                              {'user': self.user,
                               'comment': a,
                               'datetime': r.expr(datetime.now(r.make_timezone('-05:00')))
