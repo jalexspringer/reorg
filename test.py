@@ -1,28 +1,42 @@
+import time
+
 import rethinkdb as r
+from slackclient import SlackClient
+
 from sec.sec import *
 from libs.defaults import *
-from libs.task import Task
+from libs.task import Task, NewTask
+from libs.workflow import Workflow
+from libs.users import AdminUser, ReOrgUser
+from plugins.new_client import *
 
 c = r.connect(DB_HOST, PORT)
 
-org='5KO92E2QEA1VY41M3X4P'
-user = 'U3NGNR04W'
-title = 'More HR training.'
-description = 'Will it never end?'
+def find_test_org(name):
+    try:
+        res = r.db('Clients').table('clients').filter({'name': name}).run(c)
+        for i in res:
+            org = i['id']
+        return org
+    except:
+        return None
 
-t = Task(org, 'HR-001', user)
+org = find_test_org('AS Org')
 
-t.task_record
-t.assign_task('Alex')
-t.add_contributor('Josh', 'Janet')
-t.add_link('HR-000', 'HR-002')
-t.add_tag('free_stuff', 'hirings')
-t.task_record.update({'todos': None})
-t.add_todo('my first task', 'second, the jump', 'third!')
-t.add_comment('Started kicking ass on this project.')
-t.add_comment('Continued kicking ass on this project.')
-t.commit()
-db.table('tasks').get(t.task_id).run(c)
+def deep_scrub(names):
+    to_clean = []
+    for n in names:
+        to_clean.append(find_test_org(n))
+    for i in to_clean:
+        try:
+            r.db("Clients").table("clients").get(i).delete().run(c)
+            r.db_drop(i).run(c)
+        except:
+            pass
+    res = r.db("Clients").table('clients').run(c)
+    print(to_clean, 'Dropped')
+
+deep_scrub(['AS Org'])
 
 sc = SlackClient(SLACK_TOKEN)
 
