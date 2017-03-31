@@ -1,11 +1,13 @@
 '''
 '''
 import pprint as pp
+import calendar
 
 import rethinkdb as r
 from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
 
 from rtmbot.core import Plugin
+import utils.utils as utils
 from libs.users import AdminUser, ReOrgUser
 from libs.task import NewTask
 from sec.sec import *
@@ -60,15 +62,23 @@ class UserPlugin(Plugin):
                     sliced = ' '.join(sliced)
                     try:
                         func = getattr(u, COMMAND_DICTIONARY[action_type][action])
-                        response = pp.pformat(func(task_id=sliced))
-                        self.outputs.append([data['channel'], response])
+                        task_listing = func(sliced)
                     except KeyError as e:
                         response = f"KeyError = {e}\n"
-
+                    if action == 'details':
+                        print(True)
+                        attachment = self.format_task_details(task_listing, u)
+                        print(attachment)
+                        self.slack_client.api_call(
+                            "chat.postMessage",
+                            channel = data['channel'],
+                            attachments = attachment
+                        )
             else: #Existing task modifications
                 task = commands[1].strip()
                 t = u.open_task(task)
                 commands = commands[2:]
+                response = f'>>>Task {t.task_id} updated:\n'
                 for c in commands:
                     # Admin commands
                     if c.startswith('admin:'):
@@ -84,10 +94,94 @@ class UserPlugin(Plugin):
                             if action in ['comment']:
                                 sliced = ' '.join(sliced)
                             response += self.call_func(t, action_type, action, sliced)
+
                         else:
                             response += f"Unknown action type {action_type}\n"
                 t.commit()
                 self.outputs.append([data['channel'], response])
+
+
+    def todo_formatting(self, todos):
+        todo_dict = {}
+        for t,v in todos.items():
+            try:
+                todo_dict[int(t)] = v
+            except ValueError:
+                pass
+        todo_text = ''
+        for todo, value in sorted(todo_dict.items()):
+            title = value['todo']
+            if value['done']:
+                status = 'Complete'
+                todo_text += f':ballot_box_with_check:  {todo}.  *{title}*\n\n'
+            else:
+                status = 'Open'
+                todo_text += f':black_square_button:  {todo}.  *{title}*\n\n'
+        return todo_text
+
+    def comment_formatting(self, comments):
+        comment_dict = {}
+        for com in comments:
+            for c,v in com.items():
+                try:
+                    comment_dict[int(c)] = v
+                except ValueError:
+                    pass
+        comment_text = ''
+        print(comment_dict)
+        for comment, value in sorted(comment_dict.items()):
+            title = value['comment']
+            author = value['user']
+            date_string = utils.format_datestring(value['datetime'])
+            comment_text += f'{title}\n      - *{author}*   {date_string}\n'
+        return comment_text
+
+    def priority_formatting(self, task):
+        priority = task['priorities'][str(task['priority'])]
+        title = 'Priority'
+        if task['time']['deadline'] is not None:
+            date_string = utils.format_datestring(task['time']['deadline'])
+            values += f' - Due:{date_string}'
+        values = f'{priority}'
+        return title, values
+
+    def format_task_details(self, task, u):
+        urgency_title, urgency_values = self.priority_formatting(task)
+        attachment = [{
+            'fallback': task['title'] + ' - ' + task['description'],
+            'color': '#36a64f',
+            'title': task['id'] + ' - ' + task['title'],
+            'text': '  ' + task['description'],
+            'mrkdwn_in': ['fields'],
+            'fields': [
+                {
+                    'title': 'Stage',
+                    'value': u.stage_name(task['workflow'], task['stage']),
+                    'short' : True
+                },
+                {
+                    'title': urgency_title,
+                    'value': urgency_values,
+                    'short' : True
+                },
+                {
+                    'title': 'Assigned to',
+                    'value': u.full_name(task['contributors']['assignee']),
+                    'short' : False
+                },
+                {
+                    'title': 'Todos',
+                    'value': self.todo_formatting(task['todos']),
+                    'short': False
+                },
+                {
+                    'title': 'Comments',
+                    'value': self.comment_formatting(task['comments']),
+                    'short': False
+                }
+            ]
+        }]
+        return attachment
 
     def parse_command(self, c, join=False):
         cut = c.split(':')
@@ -116,7 +210,10 @@ class UserPlugin(Plugin):
         try:
             func = getattr(t, COMMAND_DICTIONARY[action_type][action])
             func(sliced)
-            response = f"Successfully added {action}:{sliced} to {t.task_id}\n"
+            if action_type == 'assign':
+                response = f"    *{action_type}* : {sliced}\n"
+            else:
+                response = f"    *{action}* : {sliced}\n"
         except KeyError as e:
             response = f"KeyError = {e}\n"
         return response

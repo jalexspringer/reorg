@@ -69,7 +69,7 @@ class Task:
         if type(assignee) == list:
             assignee = assignee[0]
         if assignee.startswith('<@'):
-            assignee = assignee[2:-1]
+            assignee = assignee[2:-2]
         try:
             current = self.update_dictionary['contributors']
             current['assignee'] = assignee
@@ -139,7 +139,7 @@ class Task:
         Open stages start at 0 and increase, closed stages start at 100 (successfully completed) and decrease
         '''
         if self.task_record['open'] and target is None:
-            self.stage += step
+            self.stage += int(step[0].strip())
             try:
                 new_stage = self.flow.open_stages[self.stage]
             except KeyError:
@@ -201,7 +201,13 @@ class Task:
         return response
 
     def resolve_todo(self, todo, **kwargs):
-        self.update_dictionary.update({'todos': {str(todo): {'done': True}}})
+        todo_dict = self.task_record['todos']
+        todo = todo[0].split()
+        new_todo_values = {}
+        for t in todo:
+            if str(t) in todo_dict:
+                new_todo_values[str(t)] = {'done': True}
+        self.update_dictionary.update({'todos': new_todo_values})
         response = ''
         return response
 
@@ -394,6 +400,8 @@ class NewTask(Task):
             self.task_dictionary['priorities'] = team['priorities']
         if self.task_dictionary['channel'] is None:
             self.task_dictionary['channel'] = team['teamChannel']
+        if self.task_dictionary['contributors']['assignee'] is None:
+            self.task_dictionary['contributors']['assignee'] = self.user
 
     def create_id(self, team, c):
         table = r.db(self.org).table(TEAMS_TABLE)

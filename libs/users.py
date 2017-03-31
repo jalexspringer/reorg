@@ -22,9 +22,8 @@ class ReOrgUser:
         self.org = org
         self.user = user
         self.admin = False
-        c = r.connect(DB_HOST, PORT)
-        res = r.db('Clients').table('clients').get(org).run(c)
-        c.close()
+        self.c = r.connect(DB_HOST, PORT)
+        res = r.db('Clients').table('clients').get(org).run(self.c)
         self.platform = res['platform']['name']
         if res['defaultTeams'] == 'all':
             self.default_teams = res['teams']
@@ -273,3 +272,17 @@ class AdminUser(ReOrgUser):
 
     def modify_workflow(self, command):
         ...
+
+    # Information requests
+    def full_name(self, user_id):
+        name = r.db(self.org).table(USER_TABLE).get(user_id).run(self.c)['name']
+        return name
+
+    def stage_name(self, workflow, stage):
+        flowlist = r.db(self.org).table(WORKFLOWS_TABLE).get(workflow).run(self.c)['flowlist']
+        print(flowlist)
+        w = Workflow(flowlist, workflow)
+        if stage < 50:
+            return w.open_stages[stage]
+        else:
+            return w.closed_stages[stage]
