@@ -68,5 +68,9 @@ COMMAND_DICTIONARY = {
         },
 
     'list' : {
+            'tasks': 'my_tasks',
+            'todos': 'my_todos',
+            'all': 'tasks_and_todos',
+            'details': 'task_details'
         }
     }

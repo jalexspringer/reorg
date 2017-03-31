@@ -45,6 +45,35 @@ class ReOrgUser:
     def open_task(self, task_id):
         return Task(self.org, task_id, self.user)
 
+    # Queries
+    def make_query(self, q_table=TASKS_TABLE):
+        c = r.connect(DB_HOST, PORT)
+        q_table = r.db(self.org).table(q_table)
+        return c, q_table
+
+    def my_tasks(self, **kwargs):
+        c, t_table = self.make_query()
+        task_response = list(t_table.filter(
+            {'contributors' : {'assignee': self.user}, 'open': True}
+            ).pluck('id', 'title', 'stage', {'time': ['deadline']}, 'todos'
+                ).run(c))
+        return task_response
+
+    def my_todos(self, **kwargs):
+        c, t_table = self.make_query()
+        todo_response = list(t_table.filter(
+            lambda task: (task['contributors']['additional'].contains(self.user))
+            & (task['open'] == True)
+            ).pluck('id', 'title', 'stage', {'time': ['deadline']}, 'todos'
+                ).run(c))
+        return todo_response
+
+    def task_details(self, task_id, **kwargs):
+        c, t_table = self.make_query()
+        response = t_table.get(task_id).run(c)
+        del response['history']
+        return response
+
 
 class AdminUser(ReOrgUser):
     def __init__(self, org, user):

@@ -68,6 +68,8 @@ class Task:
     def assign_task(self, assignee, **kwargs):
         if type(assignee) == list:
             assignee = assignee[0]
+        if assignee.startswith('<@'):
+            assignee = assignee[2:-1]
         try:
             current = self.update_dictionary['contributors']
             current['assignee'] = assignee
@@ -86,8 +88,7 @@ class Task:
             response = 'No such todo!'
             return response
         self.update_dictionary.update({'todos': {str(todo): {'assignee': assignee}}})
-        if assignee != self.task_record['contributors']['assignee']:
-            self.add_contributor(assignee)
+        self.add_contributor([assignee])
         response = 'New assignee added to update queue.'
         return response
 
@@ -97,6 +98,8 @@ class Task:
                 contribs = self.update_dictionary['contributors']['additional']
             except KeyError:
                 contribs = self.task_record['contributors']['additional']
+        else:
+            contribs = self.task_record['contributors']['additional']
         if contribs is None:
             contribs = []
         print(contribs)
@@ -355,7 +358,6 @@ class NewTask(Task):
                 'priority' : 0,
                 'team' : team,
                 'contributors' : {
-                    # TODO Auto-populate reporter
                     'reporter' : user,
                     'assignee' : assignee,
                     'additional': None
@@ -413,4 +415,3 @@ class NewTask(Task):
         self.task_dictionary['id'] = self.task_id
         table.insert(self.task_dictionary).run(c)
         print(self.task_dictionary['id'], 'Committed.')
-

@@ -1,5 +1,6 @@
 '''
 '''
+import pprint as pp
 
 import rethinkdb as r
 from rethinkdb.errors import RqlRuntimeError, RqlDriverError, ReqlNonExistenceError
@@ -50,6 +51,20 @@ class UserPlugin(Plugin):
                     response = "Womp. No luck - please consult documentation for valid arguments to create.\n"
                 t.commit()
                 response += f'New task {t.task_id} created.\n'
+                self.outputs.append([data['channel'], response])
+
+            elif commands[1].startswith('list:'): # Queries
+                commands = commands[1:]
+                for c in commands:
+                    action_type, action, sliced = self.parse_command(c)
+                    sliced = ' '.join(sliced)
+                    try:
+                        func = getattr(u, COMMAND_DICTIONARY[action_type][action])
+                        response = pp.pformat(func(task_id=sliced))
+                        self.outputs.append([data['channel'], response])
+                    except KeyError as e:
+                        response = f"KeyError = {e}\n"
+
             else: #Existing task modifications
                 task = commands[1].strip()
                 t = u.open_task(task)
@@ -72,7 +87,7 @@ class UserPlugin(Plugin):
                         else:
                             response += f"Unknown action type {action_type}\n"
                 t.commit()
-            self.outputs.append([data['channel'], response])
+                self.outputs.append([data['channel'], response])
 
     def parse_command(self, c, join=False):
         cut = c.split(':')
