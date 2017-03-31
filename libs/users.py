@@ -38,13 +38,12 @@ class ReOrgUser:
     def non_admin_response(self, command):
         return NON_ADMIN_MESSAGE.format(command)
 
-    def start_new_task(title, description, template=None):
-        t = NewTask(self.org, title, description, self.user, template=template)
+    def start_new_task(self, title, description=None, team=None, template=None):
+        t = NewTask(self.org, title, self.user, description=description, template=template, team=team)
         return t
 
-    def open_task(task_id):
-        t = Task(self.org, task_id, self.user)
-        return t
+    def open_task(self, task_id):
+        return Task(self.org, task_id, self.user)
 
 
 class AdminUser(ReOrgUser):
@@ -245,57 +244,3 @@ class AdminUser(ReOrgUser):
 
     def modify_workflow(self, command):
         ...
-
-'''
-    def create_other_user(self, user, teams=False, usergroups=False, password=False, admin=False):
-        # Auth placeholders
-        import hashlib
-        if password:
-            m = hashlib.sha224()
-            m.update(password)
-            p = m.digest()
-        else:
-            p = ''
-
-        # Slack info check
-        user_info = self.bot_client.api_call("users.info", user=user)
-        if user_info['user']['is_bot']:
-            return None
-        elif user_info['ok']:
-            # Teams are entirely client defined. This needs to be part of the initial setup process. Default is to the first three letters of the org name.
-            if user_info['user']['is_admin']:
-                admin = True
-
-            if teams:
-                teams=teams
-            else:
-                teams = self.default_teams
-
-            # Get user roles from Slack to populate default usergroups
-            # TODO Enforce this as a dictionary - use key to check with teams and usergroups tables
-            if usergroups:
-                usergroups = usergroups
-            else:
-                usergroups = self.default_user_group
-
-            new_user = {
-                'id': user,
-                'firstName': user_info['user']['profile']['first_name'],
-                'lastName': user_info['user']['profile']['last_name'],
-                'name': user_info['user']['profile']['real_name'],
-                'email': user_info['user']['profile']['email'],
-                'pass': p,
-                'admin': admin,
-                'notification': 1,
-                'teams': teams,
-                'dmChannel': '',
-                'userGroup': usergroups,
-                'lastModified': r.expr(datetime.now(r.make_timezone('-05:00'))),
-                'modifiedBy': self.user,
-                'activityLogs': []
-            }
-            return new_user
-        else:
-            print(f"Slack error - check user details for user {user}")
-            return None
-'''

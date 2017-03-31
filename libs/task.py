@@ -10,7 +10,7 @@ from libs.workflow import Workflow
 class Task:
     def __init__(self, org, task_id, user):
         self.org = org
-        self.task_id = task_id
+        self.task_id = task_id.strip()
         self.user = user
         self.c = r.connect(DB_HOST, PORT)
         self.task = r.db(org).table(TASKS_TABLE).get(task_id)
@@ -55,6 +55,7 @@ class Task:
         self.task.update(self.update_dictionary).run(self.c)
         self.task_record = self.task.run(self.c)
         self.update_dictionary = {}
+        self.pending_changes()
         print('Updated record:\n', self.task_id)
         response = self.task_id, 'Committed.'
         return response
@@ -64,7 +65,9 @@ class Task:
         print(response)
         return response
 
-    def assign_task(self, assignee):
+    def assign_task(self, assignee, **kwargs):
+        if type(assignee) == list:
+            assignee = assignee[0]
         try:
             current = self.update_dictionary['contributors']
             current['assignee'] = assignee
@@ -74,7 +77,9 @@ class Task:
         response = 'New assignee added to update queue.'
         return response
 
-    def assign_todo(self, assignee, todo):
+    def assign_todo(self, assignee, todo, **kwargs):
+        if type(assignee) == list:
+            assignee = assignee[0]
         try:
             current = self.task_record['todos'][str(todo)]
         except KeyError:
@@ -86,14 +91,16 @@ class Task:
         response = 'New assignee added to update queue.'
         return response
 
-    def add_contributor(self, *args):
-        if 'contributors 'in self.update_dictionary:
-            contribs = self.update_dictionary['contributors']
-        else:
-            contribs = self.task_record['contributors']['additional']
+    def add_contributor(self, contrib_list, **kwargs):
+        if 'contributors' in self.update_dictionary:
+            try:
+                contribs = self.update_dictionary['contributors']['additional']
+            except KeyError:
+                contribs = self.task_record['contributors']['additional']
         if contribs is None:
             contribs = []
-        for a in args:
+        print(contribs)
+        for a in contrib_list:
             if a not in contribs:
                 contribs.append(a)
         try:
@@ -105,12 +112,12 @@ class Task:
         response = 'New contributors added to update queue.'
         return response
 
-    def del_contributor(self, *args):
+    def del_contributor(self, contrib_list, **kwargs):
         contribs = self.task_record['contributors']['additional']
         if contribs is None:
             return 'No contributors to delete!'
         else:
-            for a in args:
+            for a in contrib_list:
                 if a in contribs:
                     contribs.remove(a)
         try:
@@ -122,7 +129,7 @@ class Task:
         response = 'Modified contributor list added to update queue.'
         return response
 
-    def change_stage(self, step=1, target=None):
+    def change_stage(self, step=1, target=None, **kwargs):
         '''
         Moves along the workflow stages.
         Step defaults to 1 and moves to the next stage, target chooses a specific stage.
@@ -158,11 +165,11 @@ class Task:
         response = "Stage change added to the update queue."
         return response
 
-    def resolve(self):
+    def resolve(self, **kwargs):
         response = self.change_stage(target=100)
         return response
 
-    def change_priority(self, new_priority):
+    def change_priority(self, new_priority, **kwargs):
         options = self.task_record['priorities']
         print(options)
         if str(new_priority) in options:
@@ -173,13 +180,13 @@ class Task:
         response = f'Priority change added to update queue. New priority is {options[str(new_priority)]}'
         return response
 
-    def add_todo(self, *args):
+    def add_todo(self, todo_list, **kwargs):
         todo_dict = self.task_record['todos']
         try:
             todo_id = len(self.task_record['todos']) + 1
         except TypeError:
             todo_id = 1
-        for a in args:
+        for a in todo_list:
             todo_dict[str(todo_id)] = {
                                 'todo': a,
                                 'assignee': self.task_record['contributors']['assignee'],
@@ -190,7 +197,7 @@ class Task:
         response = ''
         return response
 
-    def resolve_todo(self, todo):
+    def resolve_todo(self, todo, **kwargs):
         self.update_dictionary.update({'todos': {str(todo): {'done': True}}})
         response = ''
         return response
@@ -226,23 +233,22 @@ class Task:
         return response
         ...
 
-    def add_comment(self, *args):
+    def add_comment(self, comment, **kwargs):
         comments = self.task_record['comments']
         comment_id_num = len(comments)
-        for a in args:
-            comment_id_num += 1
-            new_comment = {str(comment_id_num):
-                             {'user': self.user,
-                              'comment': a,
-                              'datetime': r.expr(datetime.now(r.make_timezone('-05:00')))
-                             }
-            }
-            comments.append(new_comment)
+        comment_id_num += 1
+        new_comment = {str(comment_id_num):
+                            {'user': self.user,
+                            'comment': comment,
+                            'datetime': r.expr(datetime.now(r.make_timezone('-05:00')))
+                            }
+                    }
+        comments.append(new_comment)
         self.update_dictionary.update({'comments' : comments})
         response = 'Comment added to update queue.'
         return response
 
-    def del_comment(self, to_delete):
+    def del_comment(self, to_delete, **kwargs):
         comments = self.task_record['comments']
         if comments == []:
             return 'No comments to delete!'
@@ -255,34 +261,34 @@ class Task:
         response = 'Modified comments list added to update queue.'
         return response
 
-    def attach_file(self, ):
+    def attach_file(self, **kwargs):
         response = ''
         return response
 
-    def add_tag(self, *args):
+    def add_tag(self, tag_list, **kwargs):
         tags = self.task_record['tags']
         if tags == []:
             tags = []
-        for a in args:
+        for a in tag_list:
             if a not in tags:
                 tags.append(a)
         self.update_dictionary.update({'tags': tags})
         response = 'New tags added to update queue.'
         return response
 
-    def del_tag(self, *args):
+    def del_tag(self, tag_list, **kwargs):
         tags = self.task_record['tags']
         if tags is None:
             return 'No tags to delete!'
         else:
-            for a in args:
+            for a in tag_list:
                 if a in tags:
                     tags.remove(a)
         self.update_dictionary.update({'tags': tags})
         response = 'Modified link tag added to update queue.'
         return response
 
-    def add_link(self, *args):
+    def add_link(self, links_list, **kwargs):
         # First get full task list
         all_tasks = []
         new_links = self.task_record['links']
@@ -291,7 +297,7 @@ class Task:
         bad_links = []
         for row in r.db(self.org).table('tasks').pluck('id').run(self.c):
             all_tasks.append(list(row.values())[0])
-        for a in args:
+        for a in links_list:
             if a not in all_tasks and a != self.task_id:
                 bad_links.append(a)
             elif a not in new_links:
@@ -300,12 +306,12 @@ class Task:
         response = f'New links {new_links} created. The following links were not created (task does not exist) {bad_links}'
         return response
 
-    def del_link(self, *args):
+    def del_link(self, to_delete, **kwargs):
         links = self.task_record['links']
         if links is None:
             return 'No links to delete!'
         else:
-            for a in args:
+            for a in to_delete:
                 if a in links:
                     links.remove(a)
         self.update_dictionary.update({'links': links})
@@ -316,8 +322,8 @@ class NewTask(Task):
     def __init__(self,
                  org,
                  title,
-                 description,
                  user,
+                 description=None,
                  team=None,
                  is_parent=True,
                  workflow=None,
