@@ -280,7 +280,6 @@ class AdminUser(ReOrgUser):
 
     def stage_name(self, workflow, stage):
         flowlist = r.db(self.org).table(WORKFLOWS_TABLE).get(workflow).run(self.c)['flowlist']
-        print(flowlist)
         w = Workflow(flowlist, workflow)
         if stage < 50:
             return w.open_stages[stage]

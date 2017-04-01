@@ -11,6 +11,7 @@ WORKFLOWS_TABLE = 'workflows'
 
 DEFAULT_PRIORITIES= {'0': 'Urgent', '1': 'High', '2': 'Medium', '3': 'Low'}
 DEFAULT_FLOWLIST = '[Open,In-Progress,Blocked,|,Completed,Cancelled,Non-Responsive]'
+ATT_COLOR = '#36a64f'
 
 # Messaging
 NON_ADMIN_MESSAGE = "This action - {} - requires admin privileges. Please contact your team admin."
