@@ -69,7 +69,7 @@ class Task:
         if type(assignee) == list:
             assignee = assignee[0]
         if assignee.startswith('<@'):
-            assignee = assignee[2:-2]
+            assignee = assignee[2:-1]
         try:
             current = self.update_dictionary['contributors']
             current['assignee'] = assignee
